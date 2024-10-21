@@ -8,6 +8,9 @@ const dailySummarySchema = new mongoose.Schema({
   avgTemp: { type: Number },
   dominantWeather: { type: String },
   temps: { type: [Number], default: [] },
+  alerts: {
+    type: [String], // Array to store alerts related to the city's weather
+    default: [],}
 });
 
 dailySummarySchema.statics.findOrCreate = async function (city) {
@@ -19,4 +22,11 @@ dailySummarySchema.statics.findOrCreate = async function (city) {
   return summary;
 };
 
+const dailyAvgTempSchema = new mongoose.Schema({
+  city: { type: String, required: true },
+  dates: { type: [String], default: [] }, // Array of dates
+  avgTemps: { type: [Number], default: [] }, // Array of corresponding average temperatures
+});
+
 export const DailySummary = mongoose.model("DailySummary", dailySummarySchema);
+export const AvgTempSummary = mongoose.model("AvgTempSummary", dailyAvgTempSchema);
