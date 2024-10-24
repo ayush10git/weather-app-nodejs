@@ -20,10 +20,15 @@ npm install
 ```
 
 3. Create a .env file at the root of the project and add the following variables:
-   You can use my mongodb which I use for testing
+   
+   You can use my mongodb which I use for testing.
+   
+   I have also provided OpenWeather API Key
 ```bash
 MONGO_URI=mongodb+srv://ayushg31:ayush123@ayushcluster.slpkxto.mongodb.net
 PORT=4000
+CORS_ORIGIN=http://localhost:3000
+API_KEY=b22e58f74c301a052be246f896be82d5
 ```
 
 ## Running the App
