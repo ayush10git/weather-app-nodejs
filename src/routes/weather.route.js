@@ -3,7 +3,7 @@ import { fetchAndSummarizeWeather, fetchAvgTempSummary, fetchWeatherByCityAndDat
 
 const router = express.Router();
 
-router.get("/update", fetchAndSummarizeWeather);
+router.post("/update", fetchAndSummarizeWeather);
 router.get("/avg", fetchAvgTempSummary);
 router.get("/:city/:date", fetchWeatherByCityAndDate);
 

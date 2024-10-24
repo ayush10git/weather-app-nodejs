@@ -4,7 +4,7 @@ import { kelvinToCelcius } from "../utils/kelvinToCelcius.js";
 import { cities } from "../utils/cities.js";
 
 const ALERT_THRESHOLDS = {
-  highTemp: 28,
+  highTemp: 35,
   lowTemp: 0,
   severeWeather: ["Thunderstorm", "Rain", "Snow"],
 };
@@ -13,48 +13,42 @@ const sendAlert = (city, condition, message) => {
   console.log(`ALERT for ${city}: ${condition} - ${message}`);
 };
 
-export const fetchWeatherData = async (city) => {
+export const fetchWeatherData = async (city, threshold) => {
   const API_KEY = process.env.API_KEY;
   const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}`;
+  const th = threshold || 25;
 
   try {
     const response = await axios.get(url);
     const data = response.data;
+
+    // console.log("API Response:", data); // Log the entire response
+
     const alerts = [];
-
     const temp = kelvinToCelcius(data.main.temp);
+    const feelsLike = kelvinToCelcius(data.main.feels_like);
 
-    if (temp > ALERT_THRESHOLDS.highTemp) {
+    // High temperature alert
+    if (temp > th) {
       alerts.push(`High Temperature: ${temp}°C`);
       sendAlert(
         city,
         "High Temperature",
-        `The temperature is above ${ALERT_THRESHOLDS.highTemp}°C!`
+        `The temperature is above ${th}°C!`
       );
     }
-    if (temp < ALERT_THRESHOLDS.lowTemp) {
-      alerts.push(`Low Temperature: ${temp}°C`);
-      sendAlert(
-        city,
-        "Low Temperature",
-        `The temperature is below ${ALERT_THRESHOLDS.lowTemp}°C!`
-      );
-    }
+
+    // Severe weather alert
     if (ALERT_THRESHOLDS.severeWeather.includes(data.weather[0].main)) {
       alerts.push(`Severe Weather: ${data.weather[0].main}`);
-      sendAlert(
-        city,
-        "Severe Weather",
-        `Severe weather condition detected: ${data.weather[0].main}.`
-      );
     }
 
     return {
       city,
       main: data.weather[0].main,
       temp,
-      feels_like: kelvinToCelcius(data.main.feels_like),
-      timestamp: data.dt,
+      feels_like: feelsLike,
+      timestamp: data.dt, // Ensure this field is assigned
       alerts,
     };
   } catch (error) {
@@ -70,6 +64,10 @@ export const calculateDailySummaries = async (weatherData) => {
 
     const summary = await DailySummary.findOrCreate(city);
 
+    // Clear previous alerts when updating the daily summary for a city
+    summary.alerts = []; // Clear existing alerts
+
+    // Update the temperature data
     summary.maxTemp = Math.max(summary.maxTemp, data.temp);
     summary.minTemp = Math.min(summary.minTemp, data.temp);
     summary.temps.push(data.temp);
@@ -77,16 +75,19 @@ export const calculateDailySummaries = async (weatherData) => {
       summary.temps.reduce((acc, t) => acc + t, 0) / summary.temps.length
     ).toFixed(2);
 
+    // Update dominant weather and new alerts
     summary.dominantWeather = data.main;
+    summary.alerts = summary.alerts.concat(data.alerts); // Add only new alerts
 
-    summary.alerts = summary.alerts.concat(data.alerts);
-
+    // Save the updated summary to the database
     await summary.save();
   }
 };
 
 export const fetchAndSummarizeWeather = async (req, res) => {
-  const promises = cities.map((city) => fetchWeatherData(city));
+  const { threshold } = req.body;
+
+  const promises = cities.map((city) => fetchWeatherData(city, threshold));
   const results = await Promise.all(promises);
 
   const weatherData = {};
@@ -94,8 +95,10 @@ export const fetchAndSummarizeWeather = async (req, res) => {
     if (result) weatherData[result.city] = result;
   });
 
+  // Calculate and update daily summaries
   await calculateDailySummaries(weatherData);
 
+  // Fetch the updated summaries from the database
   const summaries = await DailySummary.find().sort({ date: -1 }).limit(6);
 
   res.json({
@@ -139,7 +142,6 @@ export const fetchAvgTempSummary = async (req, res) => {
     }
 
     const updatedAvgTempSummaries = await AvgTempSummary.find();
-    // console.log("called");
     res.json({
       message:
         "Average temperature summary updated for today and historical data",
@@ -157,7 +159,6 @@ export const fetchWeatherByCityAndDate = async (req, res) => {
   const { city, date } = req.params; // Get city name and date from the URL
 
   try {
-    // Query the DailySummary model for the specific city and date
     const weatherSummary = await DailySummary.findOne({ city, date });
 
     if (!weatherSummary) {
